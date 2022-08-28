@@ -17,6 +17,33 @@ function resizeCanvas() {
 window.onorientationchange = resizeCanvas;
 window.onresize = resizeCanvas;
 
+class Cursor {
+  channel: number = 1;
+  pos: number = 0;
+
+  moveLeft() {
+    if (this.pos == 0) {
+      if (this.channel == 1)
+        return;
+      --this.channel;
+      this.pos = 7;
+    } else
+      this.pos = Math.max(0, this.pos - 1);
+  }
+
+  moveRight() {
+    if (this.pos == 7) {
+      if (this.channel == 4)
+        return;
+      ++this.channel;
+      this.pos = 0;
+    } else
+      this.pos = Math.min(7, this.pos + 1);
+  }
+}
+
+const cursor = new Cursor();
+
 type Side = 'top' | 'bottom' | 'left' | 'right';
 
 function drawCbChamfered(...excludedSides: Side[]): DrawCallback {
@@ -445,14 +472,16 @@ interface Note {
 }
 
 function noteToStr(note: Note) {
-  return '---00000';
+  return '- - - 0 0 0 0 0';
 }
 
 const rows: Note[] = [];
 for (let i = 0; i < 32; ++i)
   rows.push({x: 0});
 
-function drawCbChannel(rowStrs: string[]): DrawCallback {
+function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
+  const channel = channelNum;
+
   return (ctx, bounds) => {
     const contentStartX = bounds.x + skinnyBarWidth;
     const contentStartY = bounds.y + skinnyBarWidth;
@@ -511,35 +540,42 @@ function drawCbChannel(rowStrs: string[]): DrawCallback {
         continue;
       ctx.fillStyle = rowNum == currRow ? 'black' : 'blue';
       ctx.fillText(rowStrs[rowNum], midX, rowStartY, contentWidth);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'red';
+      if (cursor.channel == channel && rowNum == currRow) {
+        const charWidth = ctx.measureText('---------------').width/15;
+        const cursorWidth = charWidth*2;
+        ctx.strokeRect(midX - charWidth*8 + (charWidth*2*cursor.pos), rowStartY - 6, cursorWidth, cursorWidth);
+      }
     }
   };
 }
 
 const pChannelRowNum = new Panel(2, 8)
   .addDrawCallback(drawCbChamfered('top', 'right'))
-  .addDrawCallback(drawCbChannel(rows.map((_, i) => i.toString().padStart(2, '0'))))
+  .addDrawCallback(drawCbChannel(rows.map((_, i) => i.toString().padStart(2, '0').split('').join(' '))))
 trackerPanel.addPanel(pChannelRowNum, 0, 13);
 
-const rowStrs = rows.map(r => noteToStr(r).split('').join(' '));
+const rowStrs = rows.map(r => noteToStr(r));
 
 const pChannel1 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs))
+  .addDrawCallback(drawCbChannel(rowStrs, 1))
 trackerPanel.addPanel(pChannel1, 2, 13);
 
 const pChannel2 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs))
+  .addDrawCallback(drawCbChannel(rowStrs, 2))
 trackerPanel.addPanel(pChannel2, 9, 13);
 
 const pChannel3 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs))
+  .addDrawCallback(drawCbChannel(rowStrs, 3))
 trackerPanel.addPanel(pChannel3, 16, 13);
 
 const pChannel4 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left' ))
-  .addDrawCallback(drawCbChannel(rowStrs))
+  .addDrawCallback(drawCbChannel(rowStrs, 4))
 trackerPanel.addPanel(pChannel4, 23, 13);
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -549,6 +585,10 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     currRow = Math.max(0, currRow - 1);
   if (e.key == 'ArrowDown')
     currRow = Math.min(rows.length - 1, currRow + 1);
+  if (e.key == 'ArrowLeft')
+    cursor.moveLeft();
+  if (e.key == 'ArrowRight')
+    cursor.moveRight();
 });
 document.addEventListener('keyup', (e: KeyboardEvent) => {
   if (e.key == 'd')
