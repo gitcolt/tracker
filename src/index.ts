@@ -91,47 +91,47 @@ trackerPanel.addPanel(pDLabel, 5, 0);
 
 const pPos = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pPos, 6, 0);
 
 const pNums = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums, 6, 1);
 
 const pNums2 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums2, 6, 2);
 
 const pNums3 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums3, 6, 3);
 
 const pNums4 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums4, 6, 4);
 
 const pNums5 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums5, 6, 5);
 
 const pNums6 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums6, 6, 6);
 
 const pNums7 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums7, 6, 7);
 
 const pNums8 = new Panel(4, 1)
                .addDrawCallback(drawCbChamfered())
-               .addDrawCallback(drawCbCenteredText('0000'))
+               .addDrawCallback(drawCbCenteredText('0 0 0 0'))
 trackerPanel.addPanel(pNums8, 6, 8);
 
 const pPatternLabel = new Panel(6, 1)
@@ -174,8 +174,8 @@ const pRepLenLabel = new Panel(6, 1)
                .addDrawCallback(drawCbCenteredText('REPLEN'));
 trackerPanel.addPanel(pRepLenLabel, 0, 8);
 
-const upArrow = drawCbCenteredText('\u2191');
-const downArrow = drawCbCenteredText('\u2193');
+const upArrow = drawCbCenteredText('\u{1F845}');
+const downArrow = drawCbCenteredText('\u{1F847}');
 
 const pUpArrow = new Panel(1, 1)
   .addDrawCallback(drawCbChamfered())
@@ -365,7 +365,7 @@ trackerPanel.addPanel(pQuadrascopeLabel, 12, 4);
 const drawCbQuadrascope: DrawCallback = (ctx, bounds) => {
   ctx.beginPath();
   const barWidth = 20;
-  const scopeWidth = (bounds.w - (4 * barWidth)) / 4;
+  const scopeWidth = (bounds.w - (5 * barWidth)) / 4;
   for (let i = 0; i < 4; ++i) {
     ctx.fillStyle = '#1f1f1f';
     ctx.fillRect(bounds.x + barWidth + (i*(scopeWidth + barWidth)), bounds.y, scopeWidth, bounds.h);
@@ -403,7 +403,7 @@ trackerPanel.addPanel(pSongNameLabel, 4, 9);
 
 const pSongName = new Panel(11, 1)
   .addDrawCallback(drawCbChamfered('left', 'right'))
-  .addDrawCallback(drawCbCenteredText('_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _'));
+  .addDrawCallback(drawCbCenteredText('_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _  '));
 trackerPanel.addPanel(pSongName, 12, 9);
 
 const pSongTime = new Panel(7, 1)
@@ -417,12 +417,12 @@ trackerPanel.addPanel(pSampleNameLeft, 0, 10);
 
 const pSampleNameLabel = new Panel(8, 1)
   .addDrawCallback(drawCbChamfered('left', 'right'))
-  .addDrawCallback(drawCbCenteredText('SAMPLENAME'));
+  .addDrawCallback(drawCbCenteredText('SAMPLENAME:'));
 trackerPanel.addPanel(pSampleNameLabel, 4, 10);
 
 const pSampleName = new Panel(11, 1)
   .addDrawCallback(drawCbChamfered('left'))
-  .addDrawCallback(drawCbCenteredText('_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _'));
+  .addDrawCallback(drawCbCenteredText('_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _  '));
 trackerPanel.addPanel(pSampleName, 12, 10);
 
 const pLoadButton = new Panel(7, 1)
@@ -448,24 +448,58 @@ function noteToStr(note: Note) {
   return '---00000';
 }
 
-const rows: Note[] = [{x: 0}, {x: 0}, {x: 0}, {x: 0}, {x: 0}, {x: 0}, {x: 0}, {x: 0}, {x: 0}];
+const rows: Note[] = [];
+for (let i = 0; i < 32; ++i)
+  rows.push({x: 0});
 
 function drawCbChannel(rowStrs: string[]): DrawCallback {
   return (ctx, bounds) => {
     const contentStartX = bounds.x + skinnyBarWidth;
     const contentStartY = bounds.y + skinnyBarWidth;
     const contentWidth = bounds.w - skinnyBarWidth*2;
+    const contentHeight = bounds.h - skinnyBarWidth*2;
     const midX = bounds.x + bounds.w/2;
     const midY = bounds.y + bounds.h/2;
 
+    // content background
     ctx.beginPath();
     ctx.fillStyle = '#1f1f1f';
     ctx.fillRect(contentStartX, contentStartY, contentWidth, bounds.h - skinnyBarWidth*2);
 
+    // chamfer bl -> br -> tr
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 3;
+    ctx.moveTo(contentStartX, contentStartY + contentHeight - ctx.lineWidth/2);
+    ctx.lineTo(contentStartX + contentWidth - ctx.lineWidth/2, contentStartY + contentHeight - ctx.lineWidth/2);
+    ctx.lineTo(contentStartX + contentWidth - ctx.lineWidth/2, contentStartY);
+    ctx.stroke();
+
+    // chamfer tr -> tl -> bl
+    ctx.beginPath();
+    ctx.strokeStyle = 'darkgray';
+    ctx.moveTo(contentStartX + contentWidth - ctx.lineWidth/2, contentStartY + ctx.lineWidth/2);
+    ctx.lineTo(contentStartX + ctx.lineWidth/2, contentStartY + ctx.lineWidth/2);
+    ctx.lineTo(contentStartX + ctx.lineWidth/2, contentStartY + contentHeight + ctx.lineWidth/2);
+    ctx.stroke();
+
+    // cursor bar
     ctx.beginPath();
     ctx.fillStyle = 'silver';
-    ctx.fillRect(contentStartX, midY - rowHeight/1.2 /*TODO replace magic num*/, contentWidth, rowHeight);
+    const cursorBarStartY = midY - rowHeight/1.2; // TODO replace magic number
+    ctx.fillRect(contentStartX, cursorBarStartY, contentWidth, rowHeight);
+    // chamfer top
+    ctx.strokeStyle = 'white';
+    ctx.moveTo(contentStartX, cursorBarStartY);
+    ctx.lineTo(contentStartX + contentWidth, cursorBarStartY);
+    ctx.stroke();
+    // chamfer bottom
+    ctx.beginPath();
+    ctx.strokeStyle = 'darkgray';
+    ctx.moveTo(contentStartX, cursorBarStartY + rowHeight);
+    ctx.lineTo(contentStartX + contentWidth, cursorBarStartY + rowHeight);
+    ctx.stroke();
 
+    // rows
     const rowOffset = midY - rowHeight/2 - currRow*rowHeight;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'hanging';
