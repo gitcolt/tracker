@@ -32,7 +32,7 @@ module.exports = {
   plugins: [
     new MiniCssExtractPlugin(),
     new HtmlWebpackPlugin({
-      title: 'my title',
+      title: 'tracker',
     }),
   ],
 };

@@ -1,6 +1,7 @@
 import './styles.css';
 
 import { Panel, PanelContainer, DrawCallback } from './canvasUI';
+import { Tracker, rowToStr } from './tracker';
 
 const can = document.createElement('canvas')!;
 const ctx = can.getContext('2d')!;
@@ -16,6 +17,9 @@ function resizeCanvas() {
 
 window.onorientationchange = resizeCanvas;
 window.onresize = resizeCanvas;
+
+const audioCtx = new AudioContext();
+const tracker = new Tracker(audioCtx);
 
 class Cursor {
   channel: number = 1;
@@ -49,7 +53,7 @@ type Side = 'top' | 'bottom' | 'left' | 'right';
 function drawCbChamfered(...excludedSides: Side[]): DrawCallback {
   return (ctx, bounds, state) => {
     ctx.beginPath();
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 2;
 
     ctx.strokeStyle = state.isPressed ? 'darkgray' : 'white';
     const offset = ctx.lineWidth/2;
@@ -315,7 +319,7 @@ trackerPanel.addPanel(pDownArrow9, 11, 8);
 const pPlayButton = new Panel(6, 1)
   .addDrawCallback(drawCbChamfered())
   .addDrawCallback(drawCbCenteredText('PLAY'))
-  .clickable(() => console.log('play'));
+  //.clickable(() => play());
 trackerPanel.addPanel(pPlayButton, 12, 0);
 
 const pStopButton = new Panel(6, 1)
@@ -390,6 +394,7 @@ const pQuadrascopeLabel = new Panel(18, 1)
 trackerPanel.addPanel(pQuadrascopeLabel, 12, 4);
 
 const drawCbQuadrascope: DrawCallback = (ctx, bounds) => {
+  /*
   ctx.beginPath();
   const barWidth = 20;
   const scopeWidth = (bounds.w - (5 * barWidth)) / 4;
@@ -398,10 +403,26 @@ const drawCbQuadrascope: DrawCallback = (ctx, bounds) => {
     ctx.fillRect(bounds.x + barWidth + (i*(scopeWidth + barWidth)), bounds.y, scopeWidth, bounds.h);
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 2;
-    ctx.moveTo(bounds.x + barWidth + (i*(scopeWidth + barWidth)), bounds.y + bounds.h/2);
-    ctx.lineTo(bounds.x + barWidth + (i*(scopeWidth + barWidth)) + scopeWidth, bounds.y + bounds.h/2);
+    const sliceWidth = scopeWidth/buffLen;
+    analyser.getByteTimeDomainData(dataArr);
+    const contentStartX = bounds.x + barWidth + (i*(scopeWidth + barWidth));
+    const midY = bounds.y + bounds.h/2;
+    let x = contentStartX;
+    for (let i = 0; i < buffLen; ++i) {
+      const v = dataArr[i] / 128;
+      //const y = bounds.y + v * bounds.h/2;
+      const y = midY + v * bounds.h/4 - bounds.h/4;
+      if (i == 0)
+        ctx.moveTo(x, y);
+      else
+        ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    //ctx.moveTo(contentStartX, midY);
+    //ctx.lineTo(contentStartX + scopeWidth, midY);
     ctx.stroke();
   }
+ */
 };
 
 const pQuadrascope = new Panel(18, 3)
@@ -464,7 +485,6 @@ trackerPanel.addPanel(pChannelsHeader, 0, 11);
 
 const skinnyBarWidth = 4;
 const rowHeight = 20;
-let currRow = 0;
 
 // temp
 interface Note {
@@ -475,9 +495,9 @@ function noteToStr(note: Note) {
   return '- - - 0 0 0 0 0';
 }
 
-const rows: Note[] = [];
-for (let i = 0; i < 32; ++i)
-  rows.push({x: 0});
+//const rows: Note[] = [];
+//for (let i = 0; i < 32; ++i)
+  //rows.push({x: 0});
 
 function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
   const channel = channelNum;
@@ -529,7 +549,7 @@ function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
     ctx.stroke();
 
     // rows
-    const rowOffset = midY - rowHeight/2 - currRow*rowHeight;
+    const rowOffset = midY - rowHeight/2 - tracker.currRow*rowHeight;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'hanging';
     for (let rowNum = 0; rowNum < rowStrs.length; ++rowNum) {
@@ -538,11 +558,11 @@ function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
         continue;
       if (rowStartY + rowHeight > bounds.y + bounds.h - skinnyBarWidth)
         continue;
-      ctx.fillStyle = rowNum == currRow ? 'black' : 'blue';
+      ctx.fillStyle = rowNum == tracker.currRow ? 'black' : 'blue';
       ctx.fillText(rowStrs[rowNum], midX, rowStartY, contentWidth);
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'red';
-      if (cursor.channel == channel && rowNum == currRow) {
+      if (cursor.channel == channel && rowNum == tracker.currRow) {
         const charWidth = ctx.measureText('---------------').width/15;
         const cursorWidth = charWidth*2;
         ctx.strokeRect(midX - charWidth*8 + (charWidth*2*cursor.pos), rowStartY - 6, cursorWidth, cursorWidth);
@@ -551,52 +571,99 @@ function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
   };
 }
 
+const rowNumStrs = tracker.getCurrPattern().channels[0].map((_, i) => i.toString().padStart(2, '0').split('').join(' '));
+
 const pChannelRowNum = new Panel(2, 8)
   .addDrawCallback(drawCbChamfered('top', 'right'))
-  .addDrawCallback(drawCbChannel(rows.map((_, i) => i.toString().padStart(2, '0').split('').join(' '))))
+  .addDrawCallback(drawCbChannel(rowNumStrs))
 trackerPanel.addPanel(pChannelRowNum, 0, 13);
 
-const rowStrs = rows.map(r => noteToStr(r));
+const channel1rowStrs = tracker.getCurrPattern().channels[0].map(r => rowToStr(r));
+const channel2rowStrs = tracker.getCurrPattern().channels[1].map(r => rowToStr(r));
+const channel3rowStrs = tracker.getCurrPattern().channels[2].map(r => rowToStr(r));
+const channel4rowStrs = tracker.getCurrPattern().channels[3].map(r => rowToStr(r));
 
 const pChannel1 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs, 1))
+  .addDrawCallback(drawCbChannel(channel1rowStrs, 1))
 trackerPanel.addPanel(pChannel1, 2, 13);
 
 const pChannel2 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs, 2))
+  .addDrawCallback(drawCbChannel(channel2rowStrs, 2))
 trackerPanel.addPanel(pChannel2, 9, 13);
 
 const pChannel3 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(rowStrs, 3))
+  .addDrawCallback(drawCbChannel(channel3rowStrs, 3))
 trackerPanel.addPanel(pChannel3, 16, 13);
 
 const pChannel4 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left' ))
-  .addDrawCallback(drawCbChannel(rowStrs, 4))
+  .addDrawCallback(drawCbChannel(channel4rowStrs, 4))
 trackerPanel.addPanel(pChannel4, 23, 13);
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
-  if (e.key == 'd')
-    trackerPanel.debug = true;
-  if (e.key == 'ArrowUp')
-    currRow = Math.max(0, currRow - 1);
-  if (e.key == 'ArrowDown')
-    currRow = Math.min(rows.length - 1, currRow + 1);
-  if (e.key == 'ArrowLeft')
-    cursor.moveLeft();
-  if (e.key == 'ArrowRight')
-    cursor.moveRight();
+  switch(e.key) {
+    case 'd':
+      trackerPanel.debug = true;
+      break;
+    case 'ArrowUp':
+      tracker.onUp();
+      break;
+    case 'ArrowDown':
+      tracker.onDown();
+      break;
+    case 'ArrowLeft':
+      cursor.moveLeft();
+      break;
+    case 'ArrowRight':
+      cursor.moveRight();
+      break;
+    case ' ':
+      if (!tracker.isPlaying)
+        tracker.play();
+      else
+        tracker.pause();
+      break;
+    case 'q':
+    case 'w':
+    case 'e':
+    case 'r':
+    case 't':
+    case 'y':
+    case 'u':
+    case 'i':
+    case '2':
+      if (e.repeat)
+        break;
+      tracker.onKeyboardKeyPressed(e.key);
+      break;
+  }
 });
 document.addEventListener('keyup', (e: KeyboardEvent) => {
-  if (e.key == 'd')
-    trackerPanel.debug = false;
+  switch(e.key) {
+    case 'd':
+      trackerPanel.debug = false;
+      break;
+    case 'q':
+    case 'w':
+    case 'e':
+    case 'r':
+    case 't':
+    case 'y':
+    case 'u':
+    case 'i':
+    case '2':
+      tracker.onKeyboardKeyReleased(e.key);
+      break;
+  }
 });
 
 (function loop() {
   ctx.clearRect(0, 0, can.width, can.height);
+
+  tracker.update(audioCtx);
 
   trackerPanel.draw(ctx);
 
