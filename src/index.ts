@@ -40,20 +40,20 @@ class Cursor {
         return;
       --this.channel;
       tracker.currChannelIdx = this.channel;
-      this.pos = 7;
+      this.pos = 5;
     } else
       this.pos = Math.max(0, this.pos - 1);
   }
 
   moveRight() {
-    if (this.pos == 7) {
+    if (this.pos == 5) {
       if (this.channel == 3)
         return;
       ++this.channel;
       tracker.currChannelIdx = this.channel;
       this.pos = 0;
     } else
-      this.pos = Math.min(7, this.pos + 1);
+      this.pos = Math.min(5, this.pos + 1);
   }
 }
 
@@ -414,11 +414,11 @@ const drawCbQuadrascope: DrawCallback = (ctx, bounds) => {
   ctx.beginPath();
   const barWidth = 20;
   const scopeWidth = (bounds.w - (5 * barWidth)) / 4;
+  ctx.lineWidth = 1;
   scopes.forEach((scope, i) => {
     ctx.fillStyle = '#1f1f1f';
     ctx.fillRect(bounds.x + barWidth + (i*(scopeWidth + barWidth)), bounds.y, scopeWidth, bounds.h);
     ctx.strokeStyle = 'yellow';
-    ctx.lineWidth = 2;
     const sliceWidth = scopeWidth/scope.bufLen;
     scope.analyser.getByteTimeDomainData(scope.data);
     const contentStartX = bounds.x + barWidth + (i*(scopeWidth + barWidth));
@@ -561,12 +561,17 @@ function drawCbChannel(channelNum: number): DrawCallback {
         continue;
       ctx.fillStyle = rowNum == tracker.currRow ? 'black' : 'blue';
       ctx.fillText(rowStrs[rowNum], midX, rowStartY, contentWidth);
+      // cursor
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'red';
+      const charWidth = ctx.measureText('---------------').width/15;
       if (cursor.channel == channelNum && rowNum == tracker.currRow) {
-        const charWidth = ctx.measureText('---------------').width/15;
-        const cursorWidth = charWidth*2;
-        ctx.strokeRect(midX - charWidth*8 + (charWidth*2*cursor.pos), rowStartY - 6, cursorWidth, cursorWidth);
+        const cursorWidth = cursor.pos == 0 ? charWidth*6 : charWidth*2;
+        const cursorHeight = charWidth*2;
+        let cursorLeft = midX - charWidth*8 + (charWidth*2*cursor.pos)
+        if (cursor.pos != 0)
+          cursorLeft += charWidth*4;
+        ctx.strokeRect(cursorLeft, rowStartY - 6, cursorWidth, cursorHeight);
       }
     }
   };
