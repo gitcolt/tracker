@@ -2,6 +2,7 @@ import './styles.css';
 
 import { Panel, PanelContainer, DrawCallback } from './canvasUI';
 import { Tracker, rowToStr } from './tracker';
+import { Scope } from './scope';
 
 const can = document.createElement('canvas')!;
 const ctx = can.getContext('2d')!;
@@ -20,16 +21,25 @@ window.onresize = resizeCanvas;
 
 const audioCtx = new AudioContext();
 const tracker = new Tracker(audioCtx);
+tracker.masterGain.connect(audioCtx.destination);
+
+const scopes: Scope[] = [];
+tracker.instruments.forEach((_, i) => {
+  const scope = new Scope(audioCtx);
+  tracker.instruments[i].gain.connect(scope.analyser)
+  scopes.push(scope);
+});
 
 class Cursor {
-  channel: number = 1;
+  channel: number = 0;
   pos: number = 0;
 
   moveLeft() {
     if (this.pos == 0) {
-      if (this.channel == 1)
+      if (this.channel == 0)
         return;
       --this.channel;
+      tracker.currChannelIdx = this.channel;
       this.pos = 7;
     } else
       this.pos = Math.max(0, this.pos - 1);
@@ -37,9 +47,10 @@ class Cursor {
 
   moveRight() {
     if (this.pos == 7) {
-      if (this.channel == 4)
+      if (this.channel == 3)
         return;
       ++this.channel;
+      tracker.currChannelIdx = this.channel;
       this.pos = 0;
     } else
       this.pos = Math.min(7, this.pos + 1);
@@ -372,6 +383,12 @@ trackerPanel.addPanel(pPosEdButton, 24, 2);
 
 const pRecordButton = new Panel(6, 1)
   .addDrawCallback(drawCbChamfered())
+  .addDrawCallback((ctx, bounds) => {
+    if (!tracker.isEditing)
+      return;
+    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+    ctx.fillRect(bounds.x, bounds.y, bounds.w, bounds.h);
+  })
   .addDrawCallback(drawCbCenteredText('RECORD'))
   .clickable(() => console.log('record'));
 trackerPanel.addPanel(pRecordButton, 12, 3);
@@ -394,35 +411,31 @@ const pQuadrascopeLabel = new Panel(18, 1)
 trackerPanel.addPanel(pQuadrascopeLabel, 12, 4);
 
 const drawCbQuadrascope: DrawCallback = (ctx, bounds) => {
-  /*
   ctx.beginPath();
   const barWidth = 20;
   const scopeWidth = (bounds.w - (5 * barWidth)) / 4;
-  for (let i = 0; i < 4; ++i) {
+  scopes.forEach((scope, i) => {
     ctx.fillStyle = '#1f1f1f';
     ctx.fillRect(bounds.x + barWidth + (i*(scopeWidth + barWidth)), bounds.y, scopeWidth, bounds.h);
     ctx.strokeStyle = 'yellow';
     ctx.lineWidth = 2;
-    const sliceWidth = scopeWidth/buffLen;
-    analyser.getByteTimeDomainData(dataArr);
+    const sliceWidth = scopeWidth/scope.bufLen;
+    scope.analyser.getByteTimeDomainData(scope.data);
     const contentStartX = bounds.x + barWidth + (i*(scopeWidth + barWidth));
     const midY = bounds.y + bounds.h/2;
     let x = contentStartX;
-    for (let i = 0; i < buffLen; ++i) {
-      const v = dataArr[i] / 128;
+    for (let j = 0; j < scope.bufLen; ++j) {
+      const v = scope.data[j] / 128;
       //const y = bounds.y + v * bounds.h/2;
       const y = midY + v * bounds.h/4 - bounds.h/4;
-      if (i == 0)
+      if (j == 0)
         ctx.moveTo(x, y);
       else
         ctx.lineTo(x, y);
       x += sliceWidth;
     }
-    //ctx.moveTo(contentStartX, midY);
-    //ctx.lineTo(contentStartX + scopeWidth, midY);
     ctx.stroke();
-  }
- */
+  });
 };
 
 const pQuadrascope = new Panel(18, 3)
@@ -486,23 +499,11 @@ trackerPanel.addPanel(pChannelsHeader, 0, 11);
 const skinnyBarWidth = 4;
 const rowHeight = 20;
 
-// temp
-interface Note {
-  x: number;
-}
-
-function noteToStr(note: Note) {
-  return '- - - 0 0 0 0 0';
-}
-
-//const rows: Note[] = [];
-//for (let i = 0; i < 32; ++i)
-  //rows.push({x: 0});
-
-function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
-  const channel = channelNum;
-
+function drawCbChannel(channelNum: number): DrawCallback {
   return (ctx, bounds) => {
+    const rowStrs = channelNum == -1
+      ? tracker.getCurrPattern().channels[0].map((_, i) => i.toString().padStart(2, '0').split('').join(' '))
+      : tracker.getCurrPattern().channels[channelNum].map(r => rowToStr(r));
     const contentStartX = bounds.x + skinnyBarWidth;
     const contentStartY = bounds.y + skinnyBarWidth;
     const contentWidth = bounds.w - skinnyBarWidth*2;
@@ -562,7 +563,7 @@ function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
       ctx.fillText(rowStrs[rowNum], midX, rowStartY, contentWidth);
       ctx.lineWidth = 2;
       ctx.strokeStyle = 'red';
-      if (cursor.channel == channel && rowNum == tracker.currRow) {
+      if (cursor.channel == channelNum && rowNum == tracker.currRow) {
         const charWidth = ctx.measureText('---------------').width/15;
         const cursorWidth = charWidth*2;
         ctx.strokeRect(midX - charWidth*8 + (charWidth*2*cursor.pos), rowStartY - 6, cursorWidth, cursorWidth);
@@ -571,36 +572,29 @@ function drawCbChannel(rowStrs: string[], channelNum?: number): DrawCallback {
   };
 }
 
-const rowNumStrs = tracker.getCurrPattern().channels[0].map((_, i) => i.toString().padStart(2, '0').split('').join(' '));
-
 const pChannelRowNum = new Panel(2, 8)
   .addDrawCallback(drawCbChamfered('top', 'right'))
-  .addDrawCallback(drawCbChannel(rowNumStrs))
+  .addDrawCallback(drawCbChannel(-1))
 trackerPanel.addPanel(pChannelRowNum, 0, 13);
-
-const channel1rowStrs = tracker.getCurrPattern().channels[0].map(r => rowToStr(r));
-const channel2rowStrs = tracker.getCurrPattern().channels[1].map(r => rowToStr(r));
-const channel3rowStrs = tracker.getCurrPattern().channels[2].map(r => rowToStr(r));
-const channel4rowStrs = tracker.getCurrPattern().channels[3].map(r => rowToStr(r));
 
 const pChannel1 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(channel1rowStrs, 1))
+  .addDrawCallback(drawCbChannel(0))
 trackerPanel.addPanel(pChannel1, 2, 13);
 
 const pChannel2 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(channel2rowStrs, 2))
+  .addDrawCallback(drawCbChannel(1))
 trackerPanel.addPanel(pChannel2, 9, 13);
 
 const pChannel3 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left', 'right'))
-  .addDrawCallback(drawCbChannel(channel3rowStrs, 3))
+  .addDrawCallback(drawCbChannel(2))
 trackerPanel.addPanel(pChannel3, 16, 13);
 
 const pChannel4 = new Panel(7, 8)
   .addDrawCallback(drawCbChamfered('top', 'left' ))
-  .addDrawCallback(drawCbChannel(channel4rowStrs, 4))
+  .addDrawCallback(drawCbChannel(3))
 trackerPanel.addPanel(pChannel4, 23, 13);
 
 document.addEventListener('keydown', (e: KeyboardEvent) => {
@@ -620,11 +614,11 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     case 'ArrowRight':
       cursor.moveRight();
       break;
+    case 'Enter':
+      tracker.togglePlayPause();
+      break;
     case ' ':
-      if (!tracker.isPlaying)
-        tracker.play();
-      else
-        tracker.pause();
+      tracker.toggleEditMode();
       break;
     case 'q':
     case 'w':
@@ -635,6 +629,7 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
     case 'u':
     case 'i':
     case '2':
+    case 'Backspace':
       if (e.repeat)
         break;
       tracker.onKeyboardKeyPressed(e.key);

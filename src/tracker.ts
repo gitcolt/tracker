@@ -34,6 +34,7 @@ keyToNote.set('r', Notes.F_4);
 keyToNote.set('t', Notes.G_4);
 keyToNote.set('y', Notes.A_4);
 keyToNote.set('u', Notes.B_4);
+keyToNote.set('Backspace', Notes.NONE);
 
 
 enum ModifierType {
@@ -90,10 +91,8 @@ function createPattern(length: number): Pattern {
 
 export class Instrument {
   private audioCtx: AudioContext;
-  //private osc?: OscillatorNode;
-  private hasStarted: boolean = false;
   private oscillatorType: OscillatorType;
-  private gain: GainNode;
+  gain: GainNode;
 
   constructor(audioCtx: AudioContext, masterGain: GainNode, type: OscillatorType) {
     this.audioCtx = audioCtx;
@@ -119,8 +118,10 @@ export class Tracker {
   instruments: Instrument[];
   currSequenceIdx: number = 0;
   currRow: number = 0;
-  masterGain: GainNode;
   isPlaying: boolean = false;
+  isEditing: boolean = false;
+  currChannelIdx: number = 0;
+  masterGain: GainNode;
   private nextRowIdxToBeScheduled = 0;
   private keyboardInstrument: Instrument;
   private audioCtx: AudioContext;
@@ -128,7 +129,6 @@ export class Tracker {
 
   constructor(audioCtx: AudioContext) {
     this.masterGain = new GainNode(audioCtx);
-    this.masterGain.connect(audioCtx.destination);
     this.sequence = [createPattern(16)];
     this.instruments = [
       new Instrument(audioCtx, this.masterGain, 'sine'),
@@ -138,6 +138,17 @@ export class Tracker {
     ];
     this.keyboardInstrument = new Instrument(audioCtx, this.masterGain, 'sawtooth');
     this.audioCtx = audioCtx;
+  }
+
+  toggleEditMode() {
+    this.isEditing = !this.isEditing;
+  }
+
+  togglePlayPause() {
+    if (!this.isPlaying)
+      this.play();
+    else
+      this.pause();
   }
 
   onUp() {
@@ -158,11 +169,16 @@ export class Tracker {
       return;
     const osc = this.keyboardInstrument.schedule(note.freq!, this.audioCtx.currentTime);
     this.keyboardOscillators[note.freq!] = osc;
+
+    if (this.isEditing) {
+      const row = this.getCurrPattern().channels[this.currChannelIdx][this.currRow];
+      row.note = note;
+    }
   }
 
   onKeyboardKeyReleased(key: string) {
     const note = keyToNote.get(key);
-    if (!note)
+    if (!note || !this.keyboardOscillators[note.freq!])
       return;
     this.keyboardOscillators[note.freq!].stop(this.audioCtx.currentTime);
     delete this.keyboardOscillators[note.freq!];
